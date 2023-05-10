@@ -1,6 +1,10 @@
 package dstructs
 
-import "golang.org/x/exp/constraints"
+import (
+	"fmt"
+
+	"golang.org/x/exp/constraints"
+)
 
 // Basic pair representation with two elements: key and value.
 // Key [First K] is constrainted to be ordered.
@@ -21,7 +25,7 @@ func NewPair[K constraints.Ordered, V any](_First K, _Second V) *Pair[K, V] {
 }
 
 // Compares a pair with another pair by comparing their keys of type
-// K which is constrainted to be ordered.
+// K which is constrainted to be ordered. Implements Comparable interface.
 // Returned int indicates the comparison result:
 // p == other => 0
 // p < other => -1
@@ -35,4 +39,10 @@ func (p *Pair[K, V]) Compare(other *Pair[K, V]) int {
 	} else {
 		return 1
 	}
+}
+
+// Returns a string corresponding to provided Pair p.
+// Implements Stringable interface.
+func (p *Pair[K, V]) ToString() string {
+	return fmt.Sprintf("{%v, %v}", p.First, p.Second)
 }
