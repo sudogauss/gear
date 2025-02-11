@@ -5,9 +5,8 @@ import "time"
 type Keeper struct{}
 
 func AsyncLaunch[D any, E any](f func() (*D, *E), timeout int64) *Promise[D, E] {
-	completionChan := make(chan Completion)
-	interruptionChan := make(chan bool)
-	p := NewPromise[D, E](completionChan, interruptionChan, timeout)
+
+	p := NewPromise[D, E](0, 0, true, timeout)
 
 	go func() {
 		d, e := f()
@@ -22,18 +21,17 @@ func AsyncLaunch[D any, E any](f func() (*D, *E), timeout int64) *Promise[D, E] 
 		select {
 		case data := <-p.dataChannel:
 			p.data = &data
-			p.isCompleted = true
-			completionChan <- Completed
+			p.completionState = Completed
 		case err := <-p.errorChannel:
 			p.err = &err
-			p.isCompleted = true
-			completionChan <- Failed
-		case <-p.interruptionChannel:
-			p.isInterrupted = true
-			completionChan <- UserInterrupt
+			p.completionState = Failed
+		case <-p.cancelationChannel:
+			p.completionState = Canceled
 		case <-time.After(p.timeout):
-			completionChan <- Timeout
+			p.completionState = Timeout
 		}
+
+		p.completionChannel <- p.completionState
 	}()
 
 	return p

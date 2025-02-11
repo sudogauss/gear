@@ -1,4 +1,4 @@
-package dstructs
+package pair
 
 import "golang.org/x/exp/constraints"
 

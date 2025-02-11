@@ -54,4 +54,5 @@ const (
 	Timeout
 	Canceled
 	Completed
+	Filled
 )
