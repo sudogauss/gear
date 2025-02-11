@@ -49,8 +49,9 @@ type Completion int
 
 // Completion Enum definition.
 const (
-	Failed Completion = iota
+	Running Completion = iota
+	Failed
 	Timeout
-	UserInterrupt
+	Canceled
 	Completed
 )
