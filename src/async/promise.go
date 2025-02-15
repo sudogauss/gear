@@ -16,8 +16,8 @@ type Promise[D any, E any] struct {
 	errorChannel       chan (E)
 	data               *D
 	err                *E
-	completionCallback *func(D)
-	exceptionCallback  *func(E)
+	completionCallback Blockable[D]
+	exceptionCallback  Blockable[E]
 }
 
 func NewPromise[D any, E any](id uint64, threadId uint64, cancellable bool, timeout int64) *Promise[D, E] {
@@ -40,14 +40,18 @@ func NewPromise[D any, E any](id uint64, threadId uint64, cancellable bool, time
 	go func() {
 		res := <-p.completionChannel
 		if res == Completed && p.completionCallback != nil && p.data != nil {
-			// TODO: mutex here
-			(*p.completionCallback)(*p.data)
-			p.completionState = Filled
+			if err := p.completionCallback.BlockedCall(*p.data); err != nil {
+				fmt.Printf("An error has occurred %v", err)
+			} else {
+				p.completionState = Filled
+			}
 
 		} else if res == Failed && p.exceptionCallback != nil && p.err != nil {
-			// TODO: mutex here
-			(*p.exceptionCallback)(*p.err)
-			p.completionState = Filled
+			if err := p.exceptionCallback.BlockedCall(*p.err); err != nil {
+				fmt.Printf("An error has occurred %v", err)
+			} else {
+				p.completionState = Filled
+			}
 		}
 	}()
 
@@ -96,18 +100,21 @@ func (p *Promise[D, E]) Cancel() error {
 
 func (p *Promise[D, E]) Then(completionCallback func(D)) *Promise[D, E] {
 	if p.completionCallback == nil {
-		p.completionCallback = &completionCallback
+		p.completionCallback = NewSingleBlockableCallback[D](&completionCallback)
 	} else {
 		fmt.Println("Warning: you cannot apply more than one completion callback")
 	}
 
-	// TODO: mutex here
-
-	// At this point Then has been called and Completion caller called it
-	// Or Completion caller returned without filling the completion
-	// In the last case, we neet to execute completionCallback
+	// At this point Then has been called and Completion watcher executed
+	// completion callback, or Completion watcher returned without executing it.
+	// In the last case, we need to execute completionCallback.
+	// Note that it is called in Blocked mode, so it the execution and state change occur only once.
 	if p.completionState == Completed && p.data != nil {
-		(*p.completionCallback)(*p.data)
+		if err := p.completionCallback.BlockedCall(*p.data); err != nil {
+			fmt.Printf("An error has occurred %v", err)
+		} else {
+			p.completionState = Filled
+		}
 	}
 
 	return p
@@ -115,17 +122,20 @@ func (p *Promise[D, E]) Then(completionCallback func(D)) *Promise[D, E] {
 
 func (p *Promise[D, E]) Except(exceptionCallback func(E)) {
 	if p.exceptionCallback == nil {
-		p.exceptionCallback = &exceptionCallback
+		p.exceptionCallback = NewSingleBlockableCallback[E](&exceptionCallback)
 	} else {
 		fmt.Println("Warning: you cannot apply more than one completion callback")
 	}
 
-	// TODO: mutex here
-
-	// At this point Then has been called and Completion caller called it
-	// Or Completion caller returned without filling the completion
-	// In the last case, we neet to execute completionCallback
+	// At this point Then has been called and Completion watcher executed
+	// completion callback, or Completion watcher returned without executing it.
+	// In the last case, we need to execute completionCallback.
+	// Note that it is called in Blocked mode, so it the execution and state change occur only once.
 	if p.completionState == Failed && p.err != nil {
-		(*p.exceptionCallback)(*p.err)
+		if err := p.exceptionCallback.BlockedCall(*p.err); err != nil {
+			fmt.Printf("An error has occurred %v", err)
+		} else {
+			p.completionState = Filled
+		}
 	}
 }
